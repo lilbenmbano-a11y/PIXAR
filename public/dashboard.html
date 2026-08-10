@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard // Pixar Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-scanline"></div>
+<div class="bg-vignette"></div>
+
+<header>
+  <div class="nav-wrap">
+    <a href="index.html" class="logo">
+      <span class="mark"></span> Pixar Labs
+    </a>
+    <nav class="nav-links">
+      <a href="index.html">Home</a>
+      <a href="index.html#infrastructure">Infrastructure</a>
+      <a href="index.html#hosting">Hosting</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="cmdk-trigger" onclick="openCmdk()" aria-label="Open command palette">⌕ <span class="hint">Command <kbd>⌘K</kbd></span></button>
+      <div class="nav-user" id="navUserArea" style="display:none;">
+        <span class="name" id="navUserName"></span>
+        <button class="btn btn-ghost-sm" onclick="handleLogout()">Logout</button>
+      </div>
+      <button class="mobile-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <div class="container">
+    <a href="index.html" onclick="toggleMobileMenu()">Home</a>
+    <a href="index.html#infrastructure" onclick="toggleMobileMenu()">Infrastructure</a>
+    <a href="index.html#hosting" onclick="toggleMobileMenu()">Hosting</a>
+    <button class="navlink" onclick="handleLogout();toggleMobileMenu();">Logout</button>
+  </div>
+</div>
+
+<div class="dash-page">
+  <div class="dash-mobile-bar">
+    <button onclick="toggleDashSidebar()">≡ Menu</button>
+    <span class="env-tag">Preview Environment</span>
+  </div>
+  <div class="dash-shell">
+    <aside class="dash-sidebar" id="dashSidebar">
+      <div class="grp-label">Workspace</div>
+      <button class="dash-nav-item active" data-panel="overview" onclick="showPanel('overview')">Overview</button>
+      <button class="dash-nav-item" data-panel="projects" onclick="showPanel('projects')">Projects <span class="mini live">LIVE</span></button>
+      <button class="dash-nav-item" data-panel="deployments" onclick="showPanel('deployments')">Deployments <span class="mini">SOON</span></button>
+
+      <div class="grp-label">Infrastructure</div>
+      <button class="dash-nav-item" data-panel="servers" onclick="showPanel('servers')">Servers <span class="mini">SOON</span></button>
+      <button class="dash-nav-item" data-panel="domains" onclick="showPanel('domains')">Domains <span class="mini">SOON</span></button>
+      <button class="dash-nav-item" data-panel="databases" onclick="showPanel('databases')">Databases <span class="mini">SOON</span></button>
+      <button class="dash-nav-item" data-panel="storage" onclick="showPanel('storage')">Storage <span class="mini">SOON</span></button>
+
+      <div class="grp-label">Observability</div>
+      <button class="dash-nav-item" data-panel="analytics" onclick="showPanel('analytics')">Analytics <span class="mini">SOON</span></button>
+      <button class="dash-nav-item" data-panel="logs" onclick="showPanel('logs')">Logs <span class="mini">SOON</span></button>
+      <button class="dash-nav-item" data-panel="monitoring" onclick="showPanel('monitoring')">Monitoring <span class="mini">SOON</span></button>
+
+      <div class="grp-label">Organization</div>
+      <button class="dash-nav-item" data-panel="account" onclick="showPanel('account')">Account <span class="mini live">LIVE</span></button>
+      <button class="dash-nav-item" data-panel="billing" onclick="showPanel('billing')">Billing <span class="mini">SOON</span></button>
+      <button class="dash-nav-item" data-panel="team" onclick="showPanel('team')">Team <span class="mini">SOON</span></button>
+      <button class="dash-nav-item" data-panel="settings" onclick="showPanel('settings')">Settings <span class="mini">SOON</span></button>
+    </aside>
+
+    <main class="dash-main" id="dashMain">
+      <!-- Panels rendered by dashboard.js -->
+    </main>
+  </div>
+</div>
+
+<!-- Create Project Modal -->
+<div class="modal-overlay" id="createOverlay">
+  <div class="modal-box success">
+    <div class="modal-bar">
+      <span>Create New Project</span>
+      <button onclick="closeCreateModal()" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <form id="createProjectForm" onsubmit="handleCreateProject(event)">
+        <div class="form-row">
+          <label for="fProjectName">Project Name</label>
+          <input id="fProjectName" type="text" placeholder="e.g. API Gateway" required maxlength="100">
+        </div>
+        <div class="form-row">
+          <label for="fProjectSlug">Project Slug</label>
+          <input id="fProjectSlug" type="text" placeholder="e.g. api-gateway" required maxlength="40">
+          <div class="demo-note" style="margin-top:6px;">Lowercase letters, numbers, and hyphens. Must start with a letter.</div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn" onclick="closeCreateModal()">[ Cancel ]</button>
+          <button type="submit" class="btn btn-primary">[ Create Project ]</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Command Palette -->
+<div class="cmdk-overlay" id="cmdkOverlay">
+  <div class="cmdk-box">
+    <div class="cmdk-head">Pixar Labs // Command</div>
+    <div class="cmdk-input-row">
+      <input id="cmdkInput" type="text" placeholder="Search commands..." autocomplete="off">
+    </div>
+    <div class="cmdk-list" id="cmdkList"></div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="js/app.js"></script>
+<script src="js/dashboard.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  initCommandPalette();
+
+  const authed = await checkAuthState();
+  if (!authed) {
+    window.location.href = "login.html";
+    return;
+  }
+
+  // Load initial panel
+  showPanel("overview");
+});
+</script>
+</body>
+</html>

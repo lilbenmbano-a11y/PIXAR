@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixar Labs // Infrastructure for the Next Digital Frontier</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-scanline"></div>
+<div class="bg-vignette"></div>
+
+<header>
+  <div class="nav-wrap">
+    <a href="index.html" class="logo">
+      <span class="mark"></span> Pixar Labs
+    </a>
+    <nav class="nav-links">
+      <a href="#hero">Home</a>
+      <a href="#infrastructure">Infrastructure</a>
+      <a href="#hosting">Hosting</a>
+      <a href="dashboard.html" id="navDashboardLink" style="display:none;">Dashboard</a>
+      <button class="navlink" onclick="showStatusModal('Domains')">Domains</button>
+      <button class="navlink" onclick="showStatusModal('Documentation')">Documentation</button>
+      <button class="navlink" onclick="showStatusModal('Status')">Status</button>
+    </nav>
+    <div class="nav-actions">
+      <button class="cmdk-trigger" onclick="openCmdk()" aria-label="Open command palette">⌕ <span class="hint">Command <kbd>⌘K</kbd></span></button>
+      <a class="btn btn-sm" href="login.html" id="navLoginBtn">Login</a>
+      <a class="btn btn-primary btn-sm" href="signup.html" id="navRegisterBtn">Register</a>
+      <div class="nav-user" id="navUserArea" style="display:none;">
+        <span class="name" id="navUserName"></span>
+        <button class="btn btn-ghost-sm" onclick="handleLogout()">Logout</button>
+      </div>
+      <button class="mobile-toggle" onclick="toggleMobileMenu()" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<div class="mobile-menu" id="mobileMenu">
+  <div class="container">
+    <a href="#hero" onclick="toggleMobileMenu()">Home</a>
+    <a href="#infrastructure" onclick="toggleMobileMenu()">Infrastructure</a>
+    <a href="#hosting" onclick="toggleMobileMenu()">Hosting</a>
+    <a href="dashboard.html" id="mobileDashboardLink" style="display:none;" onclick="toggleMobileMenu()">Dashboard</a>
+    <button class="navlink" onclick="showStatusModal('Domains');toggleMobileMenu();">Domains</button>
+    <button class="navlink" onclick="showStatusModal('Documentation');toggleMobileMenu();">Documentation</button>
+    <button class="navlink" onclick="showStatusModal('Status');toggleMobileMenu();">Status</button>
+    <a href="login.html" class="navlink" id="mobileLoginBtn" onclick="toggleMobileMenu()">Login</a>
+    <a href="signup.html" class="navlink" id="mobileRegisterBtn" onclick="toggleMobileMenu()">Register</a>
+    <button class="navlink" id="mobileLogoutBtn" onclick="handleLogout();toggleMobileMenu();" style="display:none;">Logout</button>
+  </div>
+</div>
+
+<section class="hero" id="hero">
+  <canvas id="netCanvas"></canvas>
+  <div class="container hero-grid">
+    <div>
+      <div class="eyebrow">[SYS.01] // Infrastructure for the next digital frontier</div>
+      <h1>Build. Deploy.<br><span>Transcend.</span></h1>
+      <p class="lead">Pixar Labs provides futuristic infrastructure for developers — compute, storage, and networking for applications, APIs, and websites, engineered to run at the edge of what's possible.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="signup.html" id="heroCtaRegister">[ Get Started ]</a>
+        <a class="btn btn-primary" href="dashboard.html" id="heroCtaDashboard" style="display:none;">[ Launch Project ]</a>
+        <a class="btn" href="#infrastructure">[ Explore Infrastructure ]</a>
+      </div>
+      <div class="hero-meta">
+        <span>ENVIRONMENT <b>PREVIEW</b></span>
+        <span>PLATFORM <b>v0.1.0</b></span>
+        <span>STATUS <b>BUILDING</b></span>
+        <span>MODULES <b>02/16</b></span>
+      </div>
+    </div>
+
+    <div class="term">
+      <div class="term-bar">
+        <span>terminal://core.sys</span>
+        <div class="term-dots"><span></span><span></span><span></span></div>
+      </div>
+      <div class="term-body">
+        <div class="term-title">PIXAR LABS // CORE SYSTEM<span class="term-cursor"></span></div>
+        <div class="term-row"><span class="k">PLATFORM STATUS</span><span class="v ok"><span class="status-dot"></span>&nbsp; PRIVATE PREVIEW</span></div>
+        <div class="term-row"><span class="k">ACTIVE MODULES</span><span class="v ok">02</span></div>
+        <div class="term-row"><span class="k">PLATFORM VERSION</span><span class="v">0.1.0</span></div>
+        <div class="term-row"><span class="k">AUTHENTICATION</span><span class="v ok">ONLINE</span></div>
+        <div class="term-row"><span class="k">PROJECTS</span><span class="v ok">ONLINE</span></div>
+        <div class="term-row"><span class="k">DATA SOURCE</span><span class="v low">REAL DATABASE</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="infrastructure">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">[SYS.02] // Platform capability matrix</div>
+      <h2>Infrastructure</h2>
+      <p>Every layer of the stack, organized the way you'd actually reach for it — from raw compute up to observability. These capabilities are on the roadmap for upcoming releases.</p>
+    </div>
+    <div id="infraGroups"></div>
+  </div>
+</section>
+
+<section class="section" id="hosting">
+  <div class="container">
+    <div class="section-head">
+      <div class="eyebrow">[SYS.03] // Node allocation</div>
+      <h2>Hosting</h2>
+      <p>Provision a node in seconds. Scale compute, memory, and storage independently as your deployment grows. Node allocation will be available in a future release.</p>
+    </div>
+
+    <div class="coming-soon-banner">
+      <div class="eyebrow">[MODULE] // Hosting Engine</div>
+      <h3>Coming in v0.2</h3>
+      <p>Node provisioning, compute scaling, and edge deployment are scheduled for the next platform milestone. The pricing structure below reflects the planned offering.</p>
+    </div>
+
+    <div class="pricing-toggle">
+      <button class="active" id="toggleMonthly" onclick="setCycle('monthly')">Monthly</button>
+      <button id="toggleAnnual" onclick="setCycle('annual')">Annual — 2 months free</button>
+    </div>
+
+    <div class="plans" id="plansGrid"></div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="logo"><span class="mark"></span> Pixar Labs</div>
+        <p>Infrastructure for the next digital frontier. Edge compute, storage, and networking for developers building what comes after the cloud.</p>
+        <div class="env-tag" style="margin-top:16px;">Preview Environment v0.1.0</div>
+      </div>
+      <div>
+        <h4>Platform</h4>
+        <a href="#infrastructure">Infrastructure</a>
+        <a href="#hosting">Hosting</a>
+        <button class="navlink" onclick="showStatusModal('Domains')">Domains</button>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <button class="navlink" onclick="showStatusModal('Documentation')">Documentation</button>
+        <button class="navlink" onclick="showStatusModal('Status')">Status</button>
+        <a href="dashboard.html">Dashboard</a>
+      </div>
+      <div>
+        <h4>Account</h4>
+        <a href="login.html" id="footerLoginBtn">Login</a>
+        <button class="navlink" onclick="showStatusModal('Billing')">Billing</button>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2025 PIXAR LABS, INC. — ALL RIGHTS RESERVED</span>
+      <span>[ENVIRONMENT: PREVIEW] [PLATFORM: v0.1.0] [DATA: REAL]</span>
+    </div>
+  </div>
+</footer>
+
+<!-- Status Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box" id="modalBox">
+    <div class="modal-bar">
+      <span id="modalBarLabel">Module Status</span>
+      <button onclick="closeModal()" aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="status-chip" id="modalChip">NOT ENABLED</div>
+      <h3 id="modalTitle">Module Status</h3>
+      <p id="modalMsg"></p>
+      <button class="btn btn-block" onclick="closeModal()">[ Acknowledge ]</button>
+    </div>
+  </div>
+</div>
+
+<!-- Command Palette -->
+<div class="cmdk-overlay" id="cmdkOverlay">
+  <div class="cmdk-box">
+    <div class="cmdk-head">Pixar Labs // Command</div>
+    <div class="cmdk-input-row">
+      <input id="cmdkInput" type="text" placeholder="Search commands..." autocomplete="off">
+    </div>
+    <div class="cmdk-list" id="cmdkList"></div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="js/app.js"></script>
+<script>
+// Page-specific init
+document.addEventListener("DOMContentLoaded", () => {
+  initNetworkCanvas();
+  initCommandPalette();
+  renderInfra();
+  renderPlans();
+  checkAuthState();
+});
+</script>
+</body>
+</html>
