@@ -1,6 +1,6 @@
 """
-Pixar Labs Backend — v0.1.0
-Single-file Flask backend. Handles auth, projects, database, and security.
+Pixar Labs Backend — v0.2.0
+Single-file Flask backend. Handles auth, projects, env vars, database, security.
 """
 from flask import Flask, request, jsonify, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -16,7 +16,7 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-key-change-in-production")
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=False,  # Set True in production with HTTPS
+    SESSION_COOKIE_SECURE=False,
     PERMANENT_SESSION_LIFETIME=86400,
 )
 
@@ -25,6 +25,7 @@ limiter = Limiter(app=app, key_func=get_remote_address)
 DB_PATH = os.path.join(os.path.dirname(__file__), "pixar_labs.db")
 EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 SLUG_RE = re.compile(r"^[a-z][a-z0-9-]{2,39}$")
+ENV_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 
 
 # ── Database ────────────────────────────────────────────────────
@@ -64,10 +65,35 @@ def init_db():
     db.close()
 
 
+def migrate_db():
+    """Add new tables for existing databases."""
+    db = get_db()
+    tables = [r[0] for r in db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+    ).fetchall()]
+    if "environment_variables" not in tables:
+        db.executescript("""
+            CREATE TABLE environment_variables (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                project_id INTEGER NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                UNIQUE(project_id, key)
+            );
+            CREATE INDEX idx_env_project ON environment_variables(project_id);
+        """)
+        db.commit()
+    db.close()
+
+
 init_db()
+migrate_db()
 
 
-# ── CORS (for separate static hosting during dev) ───────────────
+# ── CORS ────────────────────────────────────────────────────────
 @app.after_request
 def after_request(response):
     origin = request.headers.get("Origin", "*")
@@ -170,6 +196,21 @@ def require_user():
     return user_id, None
 
 
+def require_project_owner(project_id):
+    """Verify user owns the project. Returns (project, error_response)."""
+    user_id, err = require_user()
+    if err:
+        return None, err
+    db = get_db()
+    project = db.execute(
+        "SELECT * FROM projects WHERE id = ? AND user_id = ?",
+        (project_id, user_id),
+    ).fetchone()
+    if not project:
+        return None, (jsonify(error="PROJECT_NOT_FOUND"), 404)
+    return dict(project), None
+
+
 @app.route("/api/projects", methods=["GET"])
 def list_projects():
     user_id, err = require_user()
@@ -222,31 +263,17 @@ def create_project():
 
 @app.route("/api/projects/<int:project_id>", methods=["GET"])
 def get_project(project_id):
-    user_id, err = require_user()
+    project, err = require_project_owner(project_id)
     if err:
         return err
-
-    db = get_db()
-    project = db.execute(
-        "SELECT * FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id)
-    ).fetchone()
-    if not project:
-        return jsonify(error="PROJECT_NOT_FOUND"), 404
-    return jsonify(project=dict(project))
+    return jsonify(project=project)
 
 
 @app.route("/api/projects/<int:project_id>", methods=["PUT"])
 def update_project(project_id):
-    user_id, err = require_user()
+    project, err = require_project_owner(project_id)
     if err:
         return err
-
-    db = get_db()
-    project = db.execute(
-        "SELECT * FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id)
-    ).fetchone()
-    if not project:
-        return jsonify(error="PROJECT_NOT_FOUND"), 404
 
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
@@ -262,20 +289,22 @@ def update_project(project_id):
     if slug:
         if not SLUG_RE.match(slug):
             return jsonify(error="INVALID_PROJECT_SLUG"), 400
+        db = get_db()
         if db.execute(
             "SELECT id FROM projects WHERE user_id = ? AND slug = ? AND id != ?",
-            (user_id, slug, project_id),
+            (session["user_id"], slug, project_id),
         ).fetchone():
             return jsonify(error="SLUG_ALREADY_EXISTS"), 409
         updates.append("slug = ?")
         params.append(slug)
 
     if not updates:
-        return jsonify(project=dict(project))
+        return jsonify(project=project)
 
     updates.append("updated_at = CURRENT_TIMESTAMP")
     params.append(project_id)
 
+    db = get_db()
     db.execute(f"UPDATE projects SET {', '.join(updates)} WHERE id = ?", params)
     db.commit()
 
@@ -285,18 +314,123 @@ def update_project(project_id):
 
 @app.route("/api/projects/<int:project_id>", methods=["DELETE"])
 def delete_project(project_id):
-    user_id, err = require_user()
+    project, err = require_project_owner(project_id)
     if err:
         return err
 
     db = get_db()
-    project = db.execute(
-        "SELECT * FROM projects WHERE id = ? AND user_id = ?", (project_id, user_id)
-    ).fetchone()
-    if not project:
-        return jsonify(error="PROJECT_NOT_FOUND"), 404
-
     db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+    db.commit()
+    return jsonify(success=True)
+
+
+# ── Environment Variables ───────────────────────────────────────
+@app.route("/api/projects/<int:project_id>/env", methods=["GET"])
+def list_env_vars(project_id):
+    project, err = require_project_owner(project_id)
+    if err:
+        return err
+
+    db = get_db()
+    rows = db.execute(
+        "SELECT id, key, value, created_at, updated_at "
+        "FROM environment_variables WHERE project_id = ? ORDER BY key ASC",
+        (project_id,),
+    ).fetchall()
+    return jsonify(vars=[dict(r) for r in rows])
+
+
+@app.route("/api/projects/<int:project_id>/env", methods=["POST"])
+def create_env_var(project_id):
+    project, err = require_project_owner(project_id)
+    if err:
+        return err
+
+    data = request.get_json() or {}
+    key = (data.get("key") or "").strip().upper()
+    value = (data.get("value") or "").strip()
+
+    if not key:
+        return jsonify(error="ENV_KEY_REQUIRED"), 400
+    if not ENV_KEY_RE.match(key):
+        return jsonify(error="INVALID_ENV_KEY"), 400
+    if len(value) > 2048:
+        return jsonify(error="ENV_VALUE_TOO_LONG"), 400
+
+    db = get_db()
+    if db.execute(
+        "SELECT id FROM environment_variables WHERE project_id = ? AND key = ?",
+        (project_id, key),
+    ).fetchone():
+        return jsonify(error="ENV_KEY_EXISTS"), 409
+
+    cur = db.execute(
+        "INSERT INTO environment_variables (project_id, key, value) VALUES (?, ?, ?)",
+        (project_id, key, value),
+    )
+    db.commit()
+
+    var = db.execute("SELECT * FROM environment_variables WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return jsonify(var=dict(var)), 201
+
+
+@app.route("/api/projects/<int:project_id>/env/<int:var_id>", methods=["PUT"])
+def update_env_var(project_id, var_id):
+    project, err = require_project_owner(project_id)
+    if err:
+        return err
+
+    db = get_db()
+    var = db.execute(
+        "SELECT * FROM environment_variables WHERE id = ? AND project_id = ?",
+        (var_id, project_id),
+    ).fetchone()
+    if not var:
+        return jsonify(error="ENV_VAR_NOT_FOUND"), 404
+
+    data = request.get_json() or {}
+    key = (data.get("key") or "").strip().upper()
+    value = (data.get("value") or "").strip()
+
+    if not key:
+        return jsonify(error="ENV_KEY_REQUIRED"), 400
+    if not ENV_KEY_RE.match(key):
+        return jsonify(error="INVALID_ENV_KEY"), 400
+    if len(value) > 2048:
+        return jsonify(error="ENV_VALUE_TOO_LONG"), 400
+
+    existing = db.execute(
+        "SELECT id FROM environment_variables WHERE project_id = ? AND key = ? AND id != ?",
+        (project_id, key, var_id),
+    ).fetchone()
+    if existing:
+        return jsonify(error="ENV_KEY_EXISTS"), 409
+
+    db.execute(
+        "UPDATE environment_variables SET key = ?, value = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (key, value, var_id),
+    )
+    db.commit()
+
+    var = db.execute("SELECT * FROM environment_variables WHERE id = ?", (var_id,)).fetchone()
+    return jsonify(var=dict(var))
+
+
+@app.route("/api/projects/<int:project_id>/env/<int:var_id>", methods=["DELETE"])
+def delete_env_var(project_id, var_id):
+    project, err = require_project_owner(project_id)
+    if err:
+        return err
+
+    db = get_db()
+    var = db.execute(
+        "SELECT * FROM environment_variables WHERE id = ? AND project_id = ?",
+        (var_id, project_id),
+    ).fetchone()
+    if not var:
+        return jsonify(error="ENV_VAR_NOT_FOUND"), 404
+
+    db.execute("DELETE FROM environment_variables WHERE id = ?", (var_id,))
     db.commit()
     return jsonify(success=True)
 
@@ -304,10 +438,10 @@ def delete_project(project_id):
 # ── Health ──────────────────────────────────────────────────────
 @app.route("/api/health", methods=["GET"])
 def health():
-    return jsonify(status="ok", version="0.1.0", environment="preview")
+    return jsonify(status="ok", version="0.2.0", environment="preview")
 
 
-# ── Static files (for local development) ────────────────────────
+# ── Static files ────────────────────────────────────────────────
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
 def serve(path):

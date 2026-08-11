@@ -71,13 +71,13 @@ async function renderOverview() {
         <div class="panel-body">
           <button class="btn btn-primary btn-block" onclick="openCreateProjectModal()" style="margin-bottom:12px;">[ + New Project ]</button>
           <button class="btn btn-block" onclick="showPanel('projects')">[ View Projects ]</button>
-          <p class="demo-note" style="margin-top:12px;">Projects are the only active module in v0.1.0</p>
+          <p class="demo-note" style="margin-top:12px;">Projects and Environment Variables are active in v0.2.0</p>
         </div>
       </div>
       <div class="panel">
         <div class="panel-head"><span>Platform Status</span><span class="id">[SYS.INFO]</span></div>
         <div class="panel-body">
-          <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">VERSION</span><span class="v">0.1.0</span></div>
+          <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">VERSION</span><span class="v">0.2.0</span></div>
           <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">AUTHENTICATION</span><span class="v ok">ONLINE</span></div>
           <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">PROJECTS</span><span class="v ok">ONLINE</span></div>
           <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">DEPLOYMENTS</span><span class="v">NOT ENABLED</span></div>
@@ -159,7 +159,7 @@ async function renderProjectDetail(projectId) {
   }
 
   const tab = currentProjectId === projectId ? "overview" : "overview";
-  const tabs = ["overview", "settings"];
+  const tabs = ["overview", "environment", "settings"];
 
   let body = "";
   if (tab === "overview") {
@@ -186,6 +186,8 @@ async function renderProjectDetail(projectId) {
         </div>
       </div>
     `;
+  } else if (tab === "environment") {
+    body = await renderEnvTab(project);
   } else if (tab === "settings") {
     body = `
       <div class="panel">
@@ -290,6 +292,132 @@ function renderAccount() {
       </div>
     </div>
   `;
+}
+
+
+/* ---- Environment Variables ---- */
+async function renderEnvTab(project) {
+  let vars = [];
+  try {
+    const data = await api(`/projects/${project.id}/env`);
+    vars = data.vars;
+  } catch (e) {
+    return `
+      <div class="panel">
+        <div class="dash-empty comingsoon">
+          <div class="status-chip">ERROR</div>
+          <h3>Failed to Load Variables</h3>
+          <p>Could not retrieve environment variables.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  const rows = vars.map(v => `
+    <tr>
+      <td style="font-family:var(--font-mono);color:var(--accent-2);">${v.key}</td>
+      <td>
+        <span class="env-mask" id="mask-${v.id}" onclick="toggleMask(${v.id}, '${encodeURIComponent(v.value)}')">${"•".repeat(Math.min(v.value.length, 16))}</span>
+        <span class="env-value" id="val-${v.id}" style="display:none;font-family:var(--font-mono);">${v.value.replace(/</g, "&lt;")}</span>
+      </td>
+      <td>${timeAgo(new Date(v.created_at).getTime())}</td>
+      <td>
+        <button class="btn btn-ghost-sm" onclick="editEnvVar(${project.id}, ${v.id}, '${v.key.replace(/'/g, "\'")}', '${encodeURIComponent(v.value)}')">Edit</button>
+        <button class="btn btn-ghost-sm" onclick="deleteEnvVar(${project.id}, ${v.id})">Delete</button>
+      </td>
+    </tr>
+  `).join("");
+
+  return `
+    <div class="panel">
+      <div class="panel-head"><span>Environment Variables</span><span class="id">[PROJ.ENV]</span></div>
+      <div class="panel-body">
+        <p style="color:var(--text-mid);font-size:12.5px;margin-bottom:16px;">Configuration values for this project. Stored in the database. Click a masked value to reveal.</p>
+        <div class="table-scroll" style="margin-bottom:16px;">
+          <table>
+            <thead><tr><th>Key</th><th>Value</th><th>Created</th><th></th></tr></thead>
+            <tbody>
+              ${rows || '<tr><td colspan="4" style="color:var(--text-dim);padding:24px;">No environment variables configured.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="openAddEnvModal(${project.id})">[ + Add Variable ]</button>
+      </div>
+    </div>
+  `;
+}
+
+function toggleMask(id, encodedValue) {
+  const mask = document.getElementById(`mask-${id}`);
+  const val = document.getElementById(`val-${id}`);
+  if (!mask || !val) return;
+  if (val.style.display === "none") {
+    mask.style.display = "none";
+    val.style.display = "inline";
+  } else {
+    mask.style.display = "inline";
+    val.style.display = "none";
+  }
+}
+
+function openAddEnvModal(projectId) {
+  const key = prompt("Enter variable key (UPPERCASE, letters/numbers/underscore, starts with letter):");
+  if (!key || !key.trim()) return;
+  const value = prompt("Enter variable value:");
+  if (value === null) return;
+  handleAddEnvVar(projectId, key.trim(), value);
+}
+
+async function handleAddEnvVar(projectId, key, value) {
+  try {
+    await api(`/projects/${projectId}/env`, { method: "POST", body: { key, value } });
+    pushToast("Variable Added", `${key} has been created.`, "success");
+    renderPanel("project-detail");
+  } catch (err) {
+    const msg = {
+      "ENV_KEY_REQUIRED": "Key is required.",
+      "INVALID_ENV_KEY": "Invalid key format. Use UPPERCASE letters, numbers, and underscores. Must start with a letter.",
+      "ENV_VALUE_TOO_LONG": "Value must be under 2048 characters.",
+      "ENV_KEY_EXISTS": "This key already exists for this project.",
+    }[err.code] || (err.message || "Failed to add variable.");
+    pushToast("Error", msg, "danger");
+  }
+}
+
+function editEnvVar(projectId, varId, currentKey, encodedValue) {
+  const key = prompt("Enter new key:", currentKey);
+  if (!key || !key.trim()) return;
+  const value = prompt("Enter new value:", decodeURIComponent(encodedValue));
+  if (value === null) return;
+  handleUpdateEnvVar(projectId, varId, key.trim(), value);
+}
+
+async function handleUpdateEnvVar(projectId, varId, key, value) {
+  try {
+    await api(`/projects/${projectId}/env/${varId}`, { method: "PUT", body: { key, value } });
+    pushToast("Variable Updated", `${key} has been updated.`, "success");
+    renderPanel("project-detail");
+  } catch (err) {
+    const msg = {
+      "ENV_KEY_REQUIRED": "Key is required.",
+      "INVALID_ENV_KEY": "Invalid key format. Use UPPERCASE letters, numbers, and underscores. Must start with a letter.",
+      "ENV_VALUE_TOO_LONG": "Value must be under 2048 characters.",
+      "ENV_KEY_EXISTS": "This key already exists for this project.",
+      "ENV_VAR_NOT_FOUND": "Variable not found.",
+    }[err.code] || (err.message || "Failed to update variable.");
+    pushToast("Error", msg, "danger");
+  }
+}
+
+async function deleteEnvVar(projectId, varId) {
+  if (!confirm("Delete this environment variable?")) return;
+  try {
+    await api(`/projects/${projectId}/env/${varId}`, { method: "DELETE" });
+    pushToast("Variable Deleted", "Environment variable has been removed.", "success");
+    renderPanel("project-detail");
+  } catch (err) {
+    pushToast("Error", "Failed to delete variable.", "danger");
+  }
 }
 
 /* ---- Coming Soon ---- */
