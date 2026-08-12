@@ -53,6 +53,7 @@ def init_db():
             user_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             slug TEXT NOT NULL,
+            description TEXT DEFAULT '',
             status TEXT DEFAULT 'READY',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -71,6 +72,10 @@ def migrate_db():
     tables = [r[0] for r in db.execute(
         "SELECT name FROM sqlite_master WHERE type='table'"
     ).fetchall()]
+    if "description" not in [c[1] for c in db.execute("PRAGMA table_info(projects)").fetchall()]:
+        db.execute("ALTER TABLE projects ADD COLUMN description TEXT DEFAULT ''")
+        db.commit()
+
     if "environment_variables" not in tables:
         db.executescript("""
             CREATE TABLE environment_variables (
@@ -235,11 +240,14 @@ def create_project():
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
     slug = (data.get("slug") or "").strip().lower()
+    description = (data.get("description") or "").strip()
 
     if not name:
         return jsonify(error="PROJECT_NAME_REQUIRED"), 400
     if len(name) > 100:
         return jsonify(error="PROJECT_NAME_TOO_LONG"), 400
+    if len(description) > 500:
+        return jsonify(error="PROJECT_DESC_TOO_LONG"), 400
     if not slug:
         return jsonify(error="PROJECT_SLUG_REQUIRED"), 400
     if not SLUG_RE.match(slug):
@@ -252,8 +260,8 @@ def create_project():
         return jsonify(error="SLUG_ALREADY_EXISTS"), 409
 
     cur = db.execute(
-        "INSERT INTO projects (user_id, name, slug) VALUES (?, ?, ?)",
-        (user_id, name, slug),
+        "INSERT INTO projects (user_id, name, slug, description) VALUES (?, ?, ?, ?)",
+        (user_id, name, slug, description),
     )
     db.commit()
 
@@ -278,6 +286,9 @@ def update_project(project_id):
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
     slug = (data.get("slug") or "").strip().lower()
+    description = data.get("description")
+    if description is not None:
+        description = description.strip()
 
     updates, params = [], []
 
@@ -286,6 +297,11 @@ def update_project(project_id):
             return jsonify(error="PROJECT_NAME_TOO_LONG"), 400
         updates.append("name = ?")
         params.append(name)
+    if description is not None:
+        if len(description) > 500:
+            return jsonify(error="PROJECT_DESC_TOO_LONG"), 400
+        updates.append("description = ?")
+        params.append(description)
     if slug:
         if not SLUG_RE.match(slug):
             return jsonify(error="INVALID_PROJECT_SLUG"), 400
@@ -438,7 +454,7 @@ def delete_env_var(project_id, var_id):
 # ── Health ──────────────────────────────────────────────────────
 @app.route("/api/health", methods=["GET"])
 def health():
-    return jsonify(status="ok", version="0.2.0", environment="preview")
+    return jsonify(status="ok", version="0.2.1", environment="preview")
 
 
 # ── Static files ────────────────────────────────────────────────

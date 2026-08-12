@@ -71,13 +71,13 @@ async function renderOverview() {
         <div class="panel-body">
           <button class="btn btn-primary btn-block" onclick="openCreateProjectModal()" style="margin-bottom:12px;">[ + New Project ]</button>
           <button class="btn btn-block" onclick="showPanel('projects')">[ View Projects ]</button>
-          <p class="demo-note" style="margin-top:12px;">Projects and Environment Variables are active in v0.2.0</p>
+          <p class="demo-note" style="margin-top:12px;">Projects and Environment Variables are active in v0.2.1</p>
         </div>
       </div>
       <div class="panel">
         <div class="panel-head"><span>Platform Status</span><span class="id">[SYS.INFO]</span></div>
         <div class="panel-body">
-          <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">VERSION</span><span class="v">0.2.0</span></div>
+          <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">VERSION</span><span class="v">0.2.1</span></div>
           <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">AUTHENTICATION</span><span class="v ok">ONLINE</span></div>
           <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">PROJECTS</span><span class="v ok">ONLINE</span></div>
           <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">DEPLOYMENTS</span><span class="v">NOT ENABLED</span></div>
@@ -108,6 +108,7 @@ async function renderProjects() {
     <tr>
       <td class="mono-strong" onclick="showProjectDetail(${p.id})">${p.name}</td>
       <td>${p.slug}</td>
+      <td>${p.description ? p.description.substring(0, 40) + (p.description.length > 40 ? "…" : "") : "—"}</td>
       <td>${statusBadge(p.status)}</td>
       <td>${timeAgo(new Date(p.created_at).getTime())}</td>
       <td><button class="btn btn-ghost-sm" onclick="showProjectDetail(${p.id})">Open</button></td>
@@ -128,7 +129,7 @@ async function renderProjects() {
       <div class="panel-head"><span>All Projects</span><span class="id">[PROJ.LIST]</span></div>
       <div class="panel-body table-scroll" style="padding:0;">
         <table>
-          <thead><tr><th>Name</th><th>Slug</th><th>Status</th><th>Created</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Slug</th><th>Description</th><th>Status</th><th>Created</th><th></th></tr></thead>
           <tbody>
             ${rows || '<tr><td colspan="5" style="color:var(--text-dim);padding:24px;">No projects yet. Create your first project to get started.</td></tr>'}
           </tbody>
@@ -170,6 +171,7 @@ async function renderProjectDetail(projectId) {
           <div class="panel-body">
             <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">NAME</span><span class="v">${project.name}</span></div>
             <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">SLUG</span><span class="v">${project.slug}</span></div>
+            <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">DESCRIPTION</span><span class="v">${project.description || "—"}</span></div>
             <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">PROJECT ID</span><span class="v">${project.id}</span></div>
             <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">STATUS</span><span class="v ok">${project.status}</span></div>
             <div class="term-row" style="border-bottom:1px dashed var(--border);padding:8px 0;"><span class="k">CREATED</span><span class="v">${new Date(project.created_at).toLocaleString()}</span></div>
@@ -196,6 +198,10 @@ async function renderProjectDetail(projectId) {
           <div class="form-row">
             <label>Project Name</label>
             <input type="text" value="${project.name}" id="settingsProjectName" maxlength="100">
+          </div>
+          <div class="form-row">
+            <label>Description</label>
+            <input type="text" value="${project.description || ""}" id="settingsProjectDesc" maxlength="500">
           </div>
           <div class="form-row">
             <label>Project Slug</label>
@@ -232,6 +238,7 @@ async function renderProjectDetail(projectId) {
       <div class="project-info-cell"><div class="label">Status</div><div class="value">${project.status}</div></div>
       <div class="project-info-cell"><div class="label">Created</div><div class="value">${new Date(project.created_at).toLocaleDateString()}</div></div>
     </div>
+    ${project.description ? `<div class="project-info-row" style="grid-template-columns:1fr;"><div class="project-info-cell"><div class="label">Description</div><div class="value">${project.description}</div></div></div>` : ""}
     <div class="project-tabs">
       ${tabs.map(t => `<button class="project-tab ${t === tab ? "active" : ""}" onclick="setProjectTab('${t}', ${project.id})">${t}</button>`).join("")}
     </div>
@@ -457,6 +464,7 @@ document.getElementById("createOverlay")?.addEventListener("click", e => {
 async function handleCreateProject(e) {
   e.preventDefault();
   const name = document.getElementById("fProjectName").value.trim();
+  const description = document.getElementById("fProjectDesc")?.value.trim() || "";
   const slug = document.getElementById("fProjectSlug").value.trim().toLowerCase();
 
   if (!name) { pushToast("Error", "Project name is required.", "danger"); return; }
@@ -467,7 +475,7 @@ async function handleCreateProject(e) {
   }
 
   try {
-    await api("/projects", { method: "POST", body: { name, slug } });
+    await api("/projects", { method: "POST", body: { name, slug, description } });
     closeCreateModal();
     pushToast("Project Created", `${name} has been created.`, "success");
     showPanel("projects");
@@ -508,6 +516,7 @@ async function handleRenameProject(projectId) {
 
 async function saveProjectSettings(projectId) {
   const name = document.getElementById("settingsProjectName")?.value.trim();
+  const description = document.getElementById("settingsProjectDesc")?.value.trim() || "";
   const slug = document.getElementById("settingsProjectSlug")?.value.trim().toLowerCase();
   if (!name) { pushToast("Error", "Project name is required.", "danger"); return; }
   if (!slug) { pushToast("Error", "Project slug is required.", "danger"); return; }
@@ -515,7 +524,7 @@ async function saveProjectSettings(projectId) {
     pushToast("Error", "Invalid slug format.", "danger"); return;
   }
   try {
-    await api(`/projects/${projectId}`, { method: "PUT", body: { name, slug } });
+    await api(`/projects/${projectId}`, { method: "PUT", body: { name, slug, description } });
     pushToast("Project Updated", "Settings saved successfully.", "success");
     renderPanel("project-detail");
   } catch (err) {

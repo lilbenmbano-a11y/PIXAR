@@ -49,7 +49,7 @@
 <div class="dash-page">
   <div class="dash-mobile-bar">
     <button onclick="toggleDashSidebar()">≡ Menu</button>
-    <span class="env-tag">Preview Environment v0.2.0</span>
+    <span class="env-tag">Preview Environment v0.2.1</span>
   </div>
   <div class="dash-shell">
     <aside class="dash-sidebar" id="dashSidebar">
@@ -94,6 +94,10 @@
         <div class="form-row">
           <label for="fProjectName">Project Name</label>
           <input id="fProjectName" type="text" placeholder="e.g. API Gateway" required maxlength="100">
+        </div>
+        <div class="form-row">
+          <label for="fProjectDesc">Description (optional)</label>
+          <input id="fProjectDesc" type="text" placeholder="e.g. API gateway for microservices" maxlength="500">
         </div>
         <div class="form-row">
           <label for="fProjectSlug">Project Slug</label>
